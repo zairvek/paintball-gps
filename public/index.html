@@ -8,8 +8,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<link rel="stylesheet" href="leaflet/leaflet.css">
+<script src="leaflet/leaflet.js"></script>
 <style>
 :root{--bg:#121614;--panel:#1b211e;--panel2:#232b27;--line:#2f3a33;--fg:#e8e6da;--muted:#9aa39c;--accent:#e9a93a;--accent-fg:#1a1408;--red:#e24d4d;--blue:#3f8cf0;--good:#58b36b;--bad:#d9534f;color-scheme:dark}
 *{box-sizing:border-box}
@@ -81,6 +81,9 @@ h1,h2{margin:0;letter-spacing:.02em}
     <div class="eyebrow">Campo real · GPS en vivo</div>
     <h1 style="font-size:26px;margin-bottom:14px">Paintball GPS</h1>
     <div class="note" id="homeNote">Activa el GPS del teléfono. La posición solo se comparte con tu equipo; los rivales no te ven.</div>
+    <div class="field" id="srvField" hidden><label for="srvUrl">Dirección del servidor</label>
+      <div class="row"><input id="srvUrl" type="url" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://tu-app.onrender.com"><button id="srvSave" style="flex:0 0 auto">Conectar</button></div>
+      <small id="srvState" style="color:var(--muted)"></small></div>
     <div class="field"><label for="name">Tu nombre</label><input id="name" maxlength="20" placeholder="Ej. Gerver"></div>
     <div class="field"><label for="code">Código de partida (compártelo con tu equipo)</label>
       <div class="row"><input id="code" maxlength="8" placeholder="Ej. CAMPO1" style="text-transform:uppercase"><button id="genCode" style="flex:0 0 auto">Generar</button></div></div>
@@ -134,8 +137,25 @@ h1,h2{margin:0;letter-spacing:.02em}
 'use strict';
 const el = id => document.getElementById(id);
 let toastT; function toast(m){ const t=el('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2800); }
-const WS_URL = (location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws';
-el('srv').textContent = location.host;
+// En la web la app vive en el propio servidor; en el APK los archivos vienen del teléfono y la dirección se configura.
+const IS_APP = location.protocol === 'file:';
+let SERVER = location.origin;
+if(IS_APP){ try{ SERVER = localStorage.getItem('pb_server')||''; }catch(e){ SERVER=''; } }
+const api = p => SERVER.replace(/\/+$/,'') + p;
+const wsUrl = () => SERVER.replace(/\/+$/,'').replace(/^http/,'ws') + '/ws';
+function showServer(){ el('srv').textContent = SERVER ? SERVER.replace(/^https?:\/\//,'') : 'sin configurar'; }
+showServer();
+if(IS_APP){
+  el('srvField').hidden = false; el('srvUrl').value = SERVER;
+  el('srvSave').onclick = async ()=>{
+    let u = el('srvUrl').value.trim().replace(/\/+$/,''); if(!u){ toast('Escribe la dirección del servidor'); return; }
+    if(!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    el('srvState').textContent = 'Probando conexión…';
+    try{ const r = await fetch(u + '/api/config'); if(!r.ok) throw 0; CONFIG = await r.json();
+      SERVER = u; try{ localStorage.setItem('pb_server', u); }catch(e){} el('srvUrl').value = u; el('srvState').textContent = 'Conectado'; el('srvState').style.color='var(--good)'; showServer(); loadMaps();
+    }catch(e){ el('srvState').textContent = 'No responde. Revisa la dirección (si usas Render gratis, la primera conexión tarda ~30 s).'; el('srvState').style.color='var(--bad)'; }
+  };
+}
 
 // ---------- Tipos de zona ----------
 const KINDS = {
@@ -155,7 +175,7 @@ const KINDS = {
 // ---------- Capas base ----------
 function baseLayers(){
   const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:21, maxNativeZoom:19, attribution:'Imágenes © Esri, Maxar, Earthstar Geographics'});
-  const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:21, maxNativeZoom:19, attribution:'© OpenStreetMap'});
+  const osm = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {maxZoom:21, maxNativeZoom:19, attribution:'Mapa © Esri, HERE, Garmin, OpenStreetMap'});
   return {sat, osm};
 }
 function makeMap(id){
@@ -184,7 +204,8 @@ function drawFeature(f, group, onClick){
 let MAPS = []; let CONFIG = {pinRequired:false}; let PIN = '';
 try{ PIN = localStorage.getItem('pb_pin')||''; }catch(e){}
 async function loadMaps(){
-  try{ const r = await fetch('/api/maps'); MAPS = await r.json(); }catch(e){ MAPS=[]; toast('No se pudo conectar con el servidor'); }
+  if(!SERVER){ MAPS=[]; }
+  else { try{ const r = await fetch(api('/api/maps')); MAPS = await r.json(); }catch(e){ MAPS=[]; toast('No se pudo conectar con el servidor'); } }
   const sel = el('mapSel'); const cur = sel.value; sel.textContent='';
   const o0 = document.createElement('option'); o0.value=''; o0.textContent='Sin mapa (solo posiciones)'; sel.appendChild(o0);
   const list = el('mapList'); list.textContent='';
@@ -194,13 +215,13 @@ async function loadMaps(){
     const g=document.createElement('div'); g.className='grow'; g.innerHTML=`<div><b></b></div><small>${m.features} elementos · ${new Date(m.updatedAt).toLocaleDateString()}</small>`; g.querySelector('b').textContent=m.name; it.appendChild(g);
     const ed=document.createElement('button'); ed.textContent='Editar'; ed.onclick=()=>openEditor(m.id); it.appendChild(ed);
     const del=document.createElement('button'); del.className='danger'; del.textContent='Borrar'; del.onclick=async()=>{ if(!del.dataset.arm){ del.dataset.arm='1'; del.textContent='¿Seguro?'; setTimeout(()=>{delete del.dataset.arm; del.textContent='Borrar';},3000); return; }
-      const r=await fetch('/api/maps/'+m.id,{method:'DELETE',headers:{'x-pin':PIN}}); if(r.ok){ toast('Mapa borrado'); loadMaps(); } else toast('No se pudo borrar (¿PIN?)'); };
+      const r=await fetch(api('/api/maps/'+m.id),{method:'DELETE',headers:{'x-pin':PIN}}); if(r.ok){ toast('Mapa borrado'); loadMaps(); } else toast('No se pudo borrar (¿PIN?)'); };
     it.appendChild(del); list.appendChild(it);
   }
-  if(!MAPS.length){ const e=document.createElement('div'); e.className='item'; e.innerHTML='<small>Aún no hay campos dibujados. Pulsa “Dibujar un campo nuevo”, ve al lugar o búscalo en el mapa y marca las zonas.</small>'; list.appendChild(e); }
+  if(!MAPS.length){ const e=document.createElement('div'); e.className='item'; e.innerHTML = SERVER ? '<small>Aún no hay campos dibujados. Pulsa “Dibujar un campo nuevo”, ve al lugar o búscalo en el mapa y marca las zonas.</small>' : '<small>Escribe arriba la dirección de tu servidor y pulsa Conectar para ver y guardar campos.</small>'; list.appendChild(e); }
   sel.value = [...sel.options].some(o=>o.value===cur) ? cur : (MAPS[0]?MAPS[0].id:'');
 }
-fetch('/api/config').then(r=>r.json()).then(c=>{CONFIG=c;}).catch(()=>{});
+if(SERVER) fetch(api('/api/config')).then(r=>r.json()).then(c=>{CONFIG=c; if(IS_APP){ el('srvState').textContent='Conectado'; el('srvState').style.color='var(--good)'; }}).catch(()=>{});
 loadMaps();
 
 // ---------- Inicio ----------
@@ -208,7 +229,14 @@ let TEAM='r';
 try{ el('name').value = localStorage.getItem('pb_name')||''; el('code').value = localStorage.getItem('pb_code')||''; TEAM = localStorage.getItem('pb_team')||'r'; }catch(e){}
 for(const b of document.querySelectorAll('.teams button')){ b.classList.toggle('sel', b.dataset.t===TEAM); b.onclick=()=>{ TEAM=b.dataset.t; for(const x of document.querySelectorAll('.teams button')) x.classList.toggle('sel',x===b); }; }
 el('genCode').onclick=()=>{ el('code').value = Array.from({length:5},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*32)]).join(''); };
-function show(name){ for(const s of ['home','editor','game']) el(s).hidden = s!==name; }
+// Navegación: cada pantalla deja una entrada en el historial para que el botón Atrás de Android vuelva al inicio.
+let CUR='home';
+function showScreen(name){ for(const s of ['home','editor','game']) el(s).hidden = s!==name; CUR=name; }
+function show(name){ showScreen(name); if(name!=='home'){ if(history.state && history.state.s) history.replaceState({s:name},'','#'+name); else history.pushState({s:name},'','#'+name); } }
+function cleanupFor(s){ if(s==='game') leaveGame(); if(s==='editor') cancelDraw(); }
+function goHome(){ if(history.state && history.state.s) history.back(); else { cleanupFor(CUR); showScreen('home'); loadMaps(); } }
+addEventListener('popstate', ()=>{ if(CUR==='home') return; cleanupFor(CUR); showScreen('home'); loadMaps(); });
+if(location.hash) history.replaceState(null,'',location.pathname);
 
 // ---------- Editor ----------
 const E = { map:null, group:null, id:null, features:[], tool:null, drawing:null, tmp:null, pts:[] };
@@ -224,7 +252,7 @@ function openEditor(id){
   setTimeout(()=>E.map.invalidateSize(),50);
   E.id = id||null; E.features=[]; E.group.clearLayers(); cancelDraw(); E.tool=null; refreshToolSel();
   el('edName').value='';
-  if(id){ fetch('/api/maps/'+id).then(r=>r.json()).then(m=>{ el('edName').value=m.name; E.features=m.features; if(m.center) E.map.setView(m.center, m.zoom||17); redrawEd(); }); }
+  if(id){ fetch(api('/api/maps/'+id)).then(r=>r.json()).then(m=>{ el('edName').value=m.name; E.features=m.features; if(m.center) E.map.setView(m.center, m.zoom||17); redrawEd(); }); }
   else { locateOnce(E.map, 18); }
 }
 function redrawEd(){ E.group.clearLayers(); for(const f of E.features) drawFeature(f, E.group, onFeatureClick); }
@@ -252,16 +280,17 @@ function onEdClick(e){
 }
 el('edFinish').onclick=finishDraw; el('edCancel').onclick=cancelDraw;
 el('edUndoPt').onclick=()=>{ E.pts.pop(); if(E.tmp) E.tmp.setLatLngs(E.pts.concat(E.pts.length>2?[E.pts[0]]:[])); };
-el('edBack').onclick=()=>{ cancelDraw(); show('home'); loadMaps(); };
+el('edBack').onclick=()=>goHome();
 el('edLayer').onclick=()=>toggleLayer(E.map);
 el('edLocate').onclick=()=>locateOnce(E.map, 18);
 function locateOnce(map, zoom){ if(!navigator.geolocation){ toast('Este navegador no tiene GPS'); return; } toast('Buscando tu posición…'); navigator.geolocation.getCurrentPosition(p=>{ map.setView([p.coords.latitude,p.coords.longitude], zoom); }, err=>toast('Sin GPS: '+err.message), {enableHighAccuracy:true, timeout:10000}); }
 async function saveMap(){
   const name=el('edName').value.trim(); if(!name){ toast('Ponle nombre al campo'); el('edName').focus(); return; }
+  if(!SERVER){ toast('Configura primero la dirección del servidor'); return; }
   if(CONFIG.pinRequired && !PIN){ el('pinModal').hidden=false; return; }
   const id = E.id || name.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,30) + '-' + Math.random().toString(36).slice(2,6);
   const c=E.map.getCenter();
-  const r = await fetch('/api/maps/'+id, {method:'PUT', headers:{'content-type':'application/json','x-pin':PIN}, body:JSON.stringify({name, center:[+c.lat.toFixed(6),+c.lng.toFixed(6)], zoom:E.map.getZoom(), features:E.features})}).catch(()=>null);
+  const r = await fetch(api('/api/maps/'+id), {method:'PUT', headers:{'content-type':'application/json','x-pin':PIN}, body:JSON.stringify({name, center:[+c.lat.toFixed(6),+c.lng.toFixed(6)], zoom:E.map.getZoom(), features:E.features})}).catch(()=>null);
   if(r && r.ok){ E.id=id; toast('Campo guardado'); }
   else if(r && r.status===403){ PIN=''; el('pinModal').hidden=false; toast('PIN incorrecto'); }
   else toast('No se pudo guardar');
@@ -275,6 +304,7 @@ el('btnNewMap').onclick=()=>openEditor(null);
 const G = { map:null, group:null, ws:null, you:null, me:null, markers:new Map(), watch:null, follow:true, out:false, lastSend:0, heading:null, wake:null, retry:null, active:false, mapId:null };
 function connect(){
   const name=el('name').value.trim()||'Jugador', code=el('code').value.trim().toUpperCase(), mapId=el('mapSel').value;
+  if(!SERVER){ toast('Configura primero la dirección del servidor'); return; }
   if(!code){ toast('Escribe o genera un código de partida'); return; }
   try{ localStorage.setItem('pb_name',name); localStorage.setItem('pb_code',code); localStorage.setItem('pb_team',TEAM); }catch(e){}
   G.active=true; G.out=false; el('btnOut').textContent='Me dieron'; el('btnOut').classList.add('danger');
@@ -289,10 +319,10 @@ function connect(){
   startGps();
   if('wakeLock' in navigator) navigator.wakeLock.request('screen').then(w=>G.wake=w).catch(()=>{});
 }
-function loadFieldInto(id, map, group){ fetch('/api/maps/'+id).then(r=>r.json()).then(m=>{ group.clearLayers(); for(const f of m.features) drawFeature(f, group); if(m.center && !G.gotFix) map.setView(m.center, m.zoom||17); }).catch(()=>toast('No se pudo cargar el mapa del campo')); }
+function loadFieldInto(id, map, group){ fetch(api('/api/maps/'+id)).then(r=>r.json()).then(m=>{ group.clearLayers(); for(const f of m.features) drawFeature(f, group); if(m.center && !G.gotFix) map.setView(m.center, m.zoom||17); }).catch(()=>toast('No se pudo cargar el mapa del campo')); }
 function openWs(code, name, mapId){
   if(G.ws){ G.ws.onclose=null; G.ws.close(); }
-  const ws = new WebSocket(WS_URL); G.ws=ws;
+  const ws = new WebSocket(wsUrl()); G.ws=ws;
   ws.onopen=()=>{ ws.send(JSON.stringify({t:'join', game:code, name, team:TEAM, map:mapId||null, id:G.you||undefined})); el('gmInfo').textContent='Partida '+code; };
   ws.onmessage=ev=>{ let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
     if(m.t==='joined'){ G.you=m.you; if(m.map && m.map!==G.mapId){ G.mapId=m.map; loadFieldInto(m.map, G.map, G.group); } applyPlayers(m); }
@@ -332,7 +362,7 @@ function startGps(){
     else G.me.setLatLng(G.pos);
     if(G.follow) G.map.panTo(G.pos,{animate:true,duration:0.5});
     const now=Date.now(); if(G.ws&&G.ws.readyState===1&&now-G.lastSend>1000){ G.lastSend=now; G.ws.send(JSON.stringify({t:'pos',lat:+lat.toFixed(6),lng:+lng.toFixed(6),acc:Math.round(acc),heading:h==null?null:Math.round(h),speed:speed==null?null:+speed.toFixed(1)})); }
-  }, err=>{ el('gmGps').textContent = err.code===1 ? 'Permiso de ubicación denegado' : 'GPS sin señal'; el('gmGps').className='gps'; }, {enableHighAccuracy:true, maximumAge:1000, timeout:15000});
+  }, err=>{ el('gmGps').textContent = err.code===1 ? (IS_APP ? 'Permite la ubicación en Ajustes › Apps › Paintball GPS' : 'Permiso de ubicación denegado') : 'GPS sin señal'; el('gmGps').className='gps'; }, {enableHighAccuracy:true, maximumAge:1000, timeout:15000});
   // brújula (si el teléfono la ofrece)
   const onOri = e=>{ let h=null; if(e.webkitCompassHeading!=null) h=e.webkitCompassHeading; else if(e.alpha!=null && e.absolute) h=(360-e.alpha)%360; if(h!=null) G.heading=h; };
   if(window.DeviceOrientationEvent){ if(typeof DeviceOrientationEvent.requestPermission==='function') DeviceOrientationEvent.requestPermission().then(s=>{ if(s==='granted') addEventListener('deviceorientation',onOri); }).catch(()=>{}); else addEventListener('deviceorientationabsolute',onOri); }
@@ -340,9 +370,12 @@ function startGps(){
 el('btnOut').onclick=()=>{ G.out=!G.out; el('btnOut').textContent = G.out?'Vuelvo al juego':'Me dieron'; el('btnOut').classList.toggle('danger',!G.out); if(G.ws&&G.ws.readyState===1) G.ws.send(JSON.stringify({t:'status',out:G.out})); };
 el('gmFollow').onclick=()=>{ G.follow=!G.follow; el('gmFollow').classList.toggle('sel',G.follow); if(G.follow&&G.pos) G.map.panTo(G.pos); };
 el('gmLayer').onclick=()=>toggleLayer(G.map);
-el('gmLeave').onclick=()=>{ G.active=false; clearTimeout(G.retry); if(G.ws){ try{G.ws.send(JSON.stringify({t:'leave'}));}catch(e){} G.ws.onclose=null; G.ws.close(); G.ws=null; } if(G.watch!=null){ navigator.geolocation.clearWatch(G.watch); G.watch=null; } if(G.wake){ G.wake.release().catch(()=>{}); G.wake=null; } show('home'); loadMaps(); };
+function leaveGame(){ G.active=false; clearTimeout(G.retry); if(G.ws){ try{G.ws.send(JSON.stringify({t:'leave'}));}catch(e){} G.ws.onclose=null; G.ws.close(); G.ws=null; } if(G.watch!=null){ navigator.geolocation.clearWatch(G.watch); G.watch=null; } if(G.wake){ G.wake.release().catch(()=>{}); G.wake=null; } }
+el('gmLeave').onclick=()=>goHome();
 el('btnPlay').onclick=connect;
-if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+// El APK llama a esto cuando el usuario concede el permiso de ubicación, para reiniciar el GPS.
+window.pbGpsReady = ()=>{ if(G.active) startGps(); };
+if(!IS_APP && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
 </html>

@@ -27,10 +27,19 @@ Variables de entorno:
 - `ADMIN_PIN` — PIN para guardar o borrar mapas. Vacío = cualquiera puede.
 - `DATA_DIR` — carpeta donde guardar `maps.json`.
 
-## Instalar como app en Android
-- **Sin APK (lo más rápido):** abre la dirección en Chrome → menú ⋮ → **Instalar aplicación** (o "Añadir a pantalla de inicio"). Se abre a pantalla completa con GPS.
-- **Generar APK:** entra en https://www.pwabuilder.com, pega la dirección de tu servidor, pulsa **Package for stores → Android** y descarga el `.apk` (o el `.aab` para Google Play). PWABuilder usa el `manifest.webmanifest` y los iconos que ya están incluidos.
-- También puedes envolverla con Capacitor o Android Studio (WebView apuntando a tu dirección) si quieres control total.
+## Obtener el APK para Android
+Necesitas antes el servidor subido con HTTPS (paso anterior).
+
+1. Abre https://www.pwabuilder.com en la computadora.
+2. Pega la dirección de tu servidor (por ejemplo `https://tu-app.onrender.com`) y pulsa **Start**.
+3. Pulsa **Package for stores** → **Android** → **Generate package**. Deja las opciones por defecto (el nombre, colores e iconos salen del `manifest.webmanifest` incluido).
+4. Descarga el `.zip`. Dentro vienen:
+   - `*.apk` → el archivo que instalas en los teléfonos.
+   - `signing.keystore` y `signing-key-info.txt` → **guárdalos**: los necesitas para publicar actualizaciones con la misma firma.
+   - `assetlinks.json` → cópialo a `public/.well-known/assetlinks.json`, vuelve a desplegar y la app se abrirá sin la barra de dirección del navegador.
+5. Pasa el `.apk` al teléfono (WhatsApp, Drive, cable) y ábrelo. Android pedirá permitir "instalar apps de fuentes desconocidas" la primera vez.
+
+Sin APK también funciona: abre la dirección en Chrome → menú ⋮ → **Instalar aplicación**.
 
 ## Cómo se juega
 1. Alguien dibuja el campo: **Dibujar un campo nuevo** → ve al lugar o búscalo moviendo el mapa → elige un tipo de zona en la barra inferior → toca las esquinas → **Terminar** → **Guardar**.

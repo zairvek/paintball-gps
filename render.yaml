@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: paintball-gps
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start

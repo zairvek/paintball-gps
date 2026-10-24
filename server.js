@@ -24,6 +24,14 @@ function saveMaps() {
 }
 
 const app = express();
+// CORS: la app instalada (APK) carga sus archivos desde el teléfono y llama a este servidor desde otro origen.
+app.use((req, res, next) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Headers', 'content-type,x-pin');
+  res.set('Access-Control-Allow-Methods', 'GET,PUT,DELETE,OPTIONS');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'public'), { etag: true }));
 
