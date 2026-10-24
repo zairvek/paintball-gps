@@ -1,5 +1,5 @@
 // Service worker: guarda la app para abrirla rápido; mapas y posiciones siempre van a la red.
-const CACHE = 'paintball-gps-v2';
+const CACHE = 'paintball-gps-v3';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png',
   '/leaflet/leaflet.css', '/leaflet/leaflet.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
@@ -12,5 +12,6 @@ self.addEventListener('fetch', e => {
     e.respondWith(fetch(e.request).then(r => { const copy = r.clone(); caches.open(CACHE + '-tiles').then(c => c.put(e.request, copy)); return r; }).catch(() => caches.match(e.request)));
     return;
   }
-  e.respondWith(caches.match(e.request).then(hit => hit || fetch(e.request)));
+  // la app: red primero (así llegan las actualizaciones), caché si no hay señal
+  e.respondWith(fetch(e.request).then(r => { if (r.ok && url.origin === location.origin) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); } return r; }).catch(() => caches.match(e.request)));
 });
