@@ -58,7 +58,7 @@ app.put('/api/maps/:id', (req, res) => {
     features: b.features.slice(0, 500).map(f => ({
       id: String(f.id || '').slice(0, 40), kind: String(f.kind || 'nota').slice(0, 20), label: String(f.label || '').slice(0, 40),
       geom: f.geom === 'point' ? 'point' : 'polygon',
-      coords: Array.isArray(f.coords) ? f.coords.slice(0, 400).map(c => [Number(c[0]), Number(c[1])]) : []
+      coords: Array.isArray(f.coords) ? f.coords.slice(0, 1500).map(c => [Number(c[0]), Number(c[1])]) : []
     })),
     updatedAt: Date.now()
   };

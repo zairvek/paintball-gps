@@ -41,11 +41,22 @@ Necesitas antes el servidor subido con HTTPS (paso anterior).
 
 Sin APK también funciona: abre la dirección en Chrome → menú ⋮ → **Instalar aplicación**.
 
+## Crear el campo caminando (más preciso)
+Ve al campo, pulsa **Crear un campo** y elige en la barra inferior qué vas a marcar (límite, base, zona prohibida…). Arriba ves la calidad del GPS: lo ideal es ±5 m o mejor.
+
+- **Esquina aquí** (recomendado para campos con esquinas): ve a cada esquina, quédate quieto y púlsalo. La app mide 5 segundos y promedia las lecturas. Repite en cada esquina y pulsa **Terminar**.
+- **Grabar caminando** (para bordes curvos): pulsa y camina por el borde. Solo guarda lecturas con precisión de ±15 m o mejor y quita los puntos sobrantes al terminar. Cuando vuelves al punto de inicio, el teléfono vibra.
+- Para puntos (reapariciones, búnkeres, banderas), ponte encima y pulsa **Marcar aquí**.
+- Puedes mezclar: tocar el mapa, medir esquinas y grabar en la misma zona.
+- Lo que dibujas se guarda como borrador en el teléfono hasta que pulsas **Guardar**, así no se pierde si se cierra la app.
+- Arriba aparece el área y el perímetro del campo.
+
 ## Cómo se juega
-1. Alguien dibuja el campo: **Dibujar un campo nuevo** → ve al lugar o búscalo moviendo el mapa → elige un tipo de zona en la barra inferior → toca las esquinas → **Terminar** → **Guardar**.
+1. Alguien crea el campo (en el mapa o caminando, ver arriba) y pulsa **Guardar**.
 2. Cada jugador escribe su nombre, el mismo **código de partida**, elige equipo y el mapa, y pulsa **Entrar**.
 3. En la partida: tu punto es el blanco con borde dorado; tus compañeros aparecen con su nombre, distancia y flecha de dirección. Arriba se ve cuántos quedan vivos por equipo.
-4. Si te eliminan, pulsa **Me dieron**; cuando reapareces, **Vuelvo al juego**.
+4. Si sales del límite del campo o entras en una zona prohibida, sale un aviso rojo y el teléfono vibra.
+5. Si te eliminan, pulsa **Me dieron**: verás una flecha y la distancia hasta tu reaparición. Al llegar vibra; pulsa **Vuelvo al juego**.
 
 ## Consejos de uso en campo
 - Activa "Alta precisión" en la ubicación del teléfono; la precisión típica es de 3 a 10 m al aire libre.

@@ -27,6 +27,10 @@ h1,h2{margin:0;letter-spacing:.02em}
 .pad{padding:16px max(16px,env(safe-area-inset-right)) 16px max(16px,env(safe-area-inset-left));padding-top:max(16px,env(safe-area-inset-top))}
 .topbar{display:flex;gap:8px;align-items:center;padding:8px max(10px,env(safe-area-inset-right)) 8px max(10px,env(safe-area-inset-left));padding-top:max(8px,env(safe-area-inset-top));background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
 .topbar .grow{flex:1 1 auto;min-width:0}
+#editor .topbar{flex-wrap:nowrap;gap:6px}
+#editor .topbar button{padding:10px;flex:0 0 auto}
+#editor .topbar #edSave{padding:10px 12px;font-size:13px}
+#edName{flex:1 1 auto!important;min-width:0}
 .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
 .field label{font-size:13px;color:var(--muted)}
@@ -69,6 +73,12 @@ h1,h2{margin:0;letter-spacing:.02em}
 .pt{width:22px;height:22px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;text-shadow:0 1px 2px #000;box-shadow:0 1px 4px rgba(0,0,0,.6)}
 .toast{position:fixed;left:50%;bottom:calc(80px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:8px 14px;border-radius:8px;font-size:14px;z-index:2000;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
 .toast.show{opacity:1}
+.drawpanel{position:absolute;left:10px;right:10px;bottom:24px;z-index:1100;background:rgba(18,22,20,.94);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px}
+#edDrawInfo{font-size:13px;line-height:1.35}
+.drawpanel button{padding:11px 8px;font-size:14px}
+button.rec{background:var(--bad);border-color:var(--bad);color:#fff}
+.alert{position:absolute;left:50%;bottom:96px;transform:translateX(-50%);z-index:1150;background:var(--bad);color:#fff;font-weight:700;padding:9px 16px;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.5);pointer-events:none;white-space:nowrap}
+.arrow{display:inline-block;font-weight:700}
 .note{background:var(--panel2);border-left:3px solid var(--accent);border-radius:6px;padding:10px 12px;font-size:13.5px;margin-bottom:14px}
 .modal{position:fixed;inset:0;z-index:1200;background:rgba(10,12,11,.7);display:flex;align-items:center;justify-content:center;padding:20px}
 .modal .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:10px}
@@ -97,7 +107,7 @@ h1,h2{margin:0;letter-spacing:.02em}
     <button class="primary bigbtn" id="btnPlay" style="width:100%;margin:6px 0 16px">Entrar a la partida</button>
     <h2 style="font-size:16px;margin-bottom:8px">Mapas del campo</h2>
     <div class="list" id="mapList"></div>
-    <button id="btnNewMap" style="margin-top:10px;width:100%">+ Dibujar un campo nuevo</button>
+    <button id="btnNewMap" style="margin-top:10px;width:100%">+ Crear un campo (en el mapa o caminando)</button>
     <p style="color:var(--muted);font-size:12.5px;margin-top:18px">Servidor: <span id="srv"></span></p>
   </div>
 </section>
@@ -112,11 +122,19 @@ h1,h2{margin:0;letter-spacing:.02em}
     <button class="primary" id="edSave">Guardar</button>
   </div>
   <div class="mapwrap"><div id="map"></div>
-    <div class="hud bottom" id="edDrawHud" hidden><div class="box" id="edDrawInfo">Toca el mapa para añadir puntos</div>
-      <div class="row" style="pointer-events:auto"><button id="edUndoPt">Quitar último</button><button class="primary" id="edFinish">Terminar</button><button id="edCancel">Cancelar</button></div></div>
+    <div class="hud top">
+      <div class="box gps" id="edGps">Buscando GPS…</div>
+      <div class="box" id="edStats" hidden></div>
+    </div>
+    <div class="drawpanel" id="edDrawHud" hidden>
+      <div id="edDrawInfo"></div>
+      <div class="row"><button id="edHere">📍 Esquina aquí</button><button id="edRec">⏺ Grabar caminando</button></div>
+      <div class="row"><button id="edUndoPt">↶ Quitar último</button><button id="edCancel">Cancelar</button><button class="primary" id="edFinish">Terminar</button></div>
+    </div>
   </div>
   <div class="tools" id="edTools"></div>
   <div class="modal" id="pinModal" hidden><div class="box"><b>PIN de organizador</b><p style="margin:0;color:var(--muted);font-size:13px">Este servidor pide un PIN para guardar mapas.</p><input id="pinInput" type="password" placeholder="PIN"><div class="row"><button id="pinCancel">Cancelar</button><button class="primary" id="pinOk">Guardar</button></div></div></div>
+  <div class="modal" id="labelModal" hidden><div class="box"><b id="labelTitle">Etiqueta</b><input id="labelInput" maxlength="40" placeholder="Ej. Torre, Búnker 2"><div class="row"><button id="labelSkip">Sin etiqueta</button><button class="primary" id="labelOk">Aceptar</button></div></div></div>
 </section>
 
 <!-- PARTIDA -->
@@ -128,6 +146,7 @@ h1,h2{margin:0;letter-spacing:.02em}
       <div class="box" style="text-align:right"><button id="gmLayer" style="padding:4px 8px;font-size:12px">🛰</button> <button id="gmFollow" class="sel" style="padding:4px 8px;font-size:12px">Seguir</button><br><button id="gmLeave" style="padding:4px 8px;font-size:12px;margin-top:4px">Salir</button></div>
     </div>
     <div class="mates" id="mates"></div>
+    <div class="alert" id="gmAlert" hidden></div>
     <div class="hud bottom">
       <div class="box" id="gmInfo">Conectando…</div>
       <button class="bigbtn danger" id="btnOut">Me dieron</button>
@@ -238,67 +257,191 @@ el('genCode').onclick=()=>{ el('code').value = Array.from({length:5},()=>'ABCDEF
 let CUR='home';
 function showScreen(name){ for(const s of ['home','editor','game']) el(s).hidden = s!==name; CUR=name; }
 function show(name){ showScreen(name); if(name!=='home'){ if(history.state && history.state.s) history.replaceState({s:name},'','#'+name); else history.pushState({s:name},'','#'+name); } }
-function cleanupFor(s){ if(s==='game') leaveGame(); if(s==='editor') cancelDraw(); }
+function cleanupFor(s){ if(s==='game') leaveGame(); if(s==='editor'){ cancelDraw(); stopEdGps(); } }
 function goHome(){ if(history.state && history.state.s) history.back(); else { cleanupFor(CUR); showScreen('home'); loadMaps(); } }
 addEventListener('popstate', ()=>{ if(CUR==='home') return; cleanupFor(CUR); showScreen('home'); loadMaps(); });
 if(location.hash) history.replaceState(null,'',location.pathname);
 
+// ---------- Utilidades geográficas (metros sobre un plano local; exacto de sobra para un campo) ----------
+function toXY(lat,lng,lat0,lng0){ return [(lng-lng0)*Math.cos(lat0*Math.PI/180)*111320, (lat-lat0)*110540]; }
+function dist(a,b){ const [x,y]=toXY(b[0],b[1],a[0],a[1]); return Math.hypot(x,y); }
+function bearing(a,b){ const [x,y]=toXY(b[0],b[1],a[0],a[1]); return (Math.atan2(x,y)*180/Math.PI+360)%360; }
+function pathLen(c){ let d=0; for(let i=1;i<c.length;i++) d+=dist(c[i-1],c[i]); return d; }
+function metrics(c){ if(c.length<3) return {area:0,perim:pathLen(c)}; const [la0,ln0]=c[0]; const p=c.map(q=>toXY(q[0],q[1],la0,ln0)); let a=0,per=0;
+  for(let i=0;i<p.length;i++){ const j=(i+1)%p.length; a+=p[i][0]*p[j][1]-p[j][0]*p[i][1]; per+=Math.hypot(p[j][0]-p[i][0],p[j][1]-p[i][1]); } return {area:Math.abs(a)/2, perim:per}; }
+// Douglas-Peucker: quita los puntos que no cambian la forma más de `tol` metros
+function simplify(c, tol){ if(c.length<4) return c; const [la0,ln0]=c[0]; const p=c.map(q=>toXY(q[0],q[1],la0,ln0)); const keep=new Uint8Array(p.length); keep[0]=keep[p.length-1]=1; const st=[[0,p.length-1]];
+  while(st.length){ const [a,b]=st.pop(); const [ax,ay]=p[a],[bx,by]=p[b]; const L2=(bx-ax)**2+(by-ay)**2; let md=0,mi=-1;
+    for(let i=a+1;i<b;i++){ let t=L2?((p[i][0]-ax)*(bx-ax)+(p[i][1]-ay)*(by-ay))/L2:0; t=Math.max(0,Math.min(1,t)); const d=Math.hypot(p[i][0]-(ax+t*(bx-ax)),p[i][1]-(ay+t*(by-ay))); if(d>md){md=d;mi=i;} }
+    if(mi>0 && md>tol){ keep[mi]=1; st.push([a,mi],[mi,b]); } }
+  return c.filter((_,i)=>keep[i]); }
+function inPoly(pt, poly){ let ins=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const [yi,xi]=poly[i],[yj,xj]=poly[j]; if(((yi>pt[0])!==(yj>pt[0])) && (pt[1] < (xj-xi)*(pt[0]-yi)/(yj-yi)+xi)) ins=!ins; } return ins; }
+function centroid(c){ let a=0,b=0; for(const q of c){a+=q[0];b+=q[1];} return [a/c.length,b/c.length]; }
+function fmtArea(m2){ return m2>=10000 ? (m2/10000).toFixed(2).replace('.',',')+' ha' : Math.round(m2).toLocaleString('es')+' m²'; }
+const DIRS=['N','NE','E','SE','S','SO','O','NO']; const dirName=b=>DIRS[Math.round(b/45)%8];
+function vibrate(p){ try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} }
+
 // ---------- Editor ----------
-const E = { map:null, group:null, id:null, features:[], tool:null, drawing:null, tmp:null, pts:[] };
+const MAX_ACC_TRACK = 15;   // al grabar caminando se ignoran lecturas peores que ±15 m
+const MAX_ACC_AVG = 25;     // al medir una esquina se ignoran lecturas peores que ±25 m
+const MEASURE_SECONDS = 5;
+const E = { map:null, group:null, id:null, features:[], tool:null, drawing:null, tmp:null, pts:[], watch:null, fix:null, meMk:null, accC:null, rec:false, avg:null, centerNext:false, dirty:false, wake:null, closeHinted:false };
 function buildTools(){
   const t=el('edTools'); t.textContent='';
-  for(const [k,d] of Object.entries(KINDS)){ const b=document.createElement('button'); b.dataset.k=k; b.innerHTML=`<span class="sw" style="background:${d.color}"></span>${d.n}`; b.onclick=()=>startDraw(k); t.appendChild(b); }
-  const del=document.createElement('button'); del.dataset.k='del'; del.textContent='🗑 Borrar elemento'; del.onclick=()=>{ cancelDraw(); E.tool = E.tool==='del'?null:'del'; refreshToolSel(); toast(E.tool==='del'?'Toca un elemento para borrarlo':'Modo borrar desactivado'); }; t.appendChild(del);
+  const add=(k,html,fn)=>{ const b=document.createElement('button'); b.dataset.k=k; b.innerHTML=html; b.onclick=fn; t.appendChild(b); };
+  for(const [k,d] of Object.entries(KINDS)) add(k, `<span class="sw" style="background:${d.color}"></span>${d.n}`, ()=>startDraw(k));
+  add('label','✏ Etiqueta', ()=>toggleTool('label','Toca una zona o punto para ponerle nombre'));
+  add('del','🗑 Borrar', ()=>toggleTool('del','Toca un elemento para borrarlo'));
+  add('undo','↶ Deshacer', ()=>{ cancelDraw(); const f=E.features.pop(); if(f){ redrawEd(); markDirty(); toast((KINDS[f.kind]||KINDS.nota).n+' quitado'); } else toast('No hay nada que deshacer'); });
 }
+function toggleTool(k,msg){ cancelDraw(); E.tool = E.tool===k?null:k; refreshToolSel(); if(E.tool) toast(msg); }
 function refreshToolSel(){ for(const b of el('edTools').querySelectorAll('button')) b.classList.toggle('sel', b.dataset.k===E.tool); }
 function openEditor(id){
   show('editor');
   if(!E.map){ E.map = makeMap('map'); E.group = L.layerGroup().addTo(E.map); E.map.on('click', onEdClick); buildTools(); }
   setTimeout(()=>E.map.invalidateSize(),50);
-  E.id = id||null; E.features=[]; E.group.clearLayers(); cancelDraw(); E.tool=null; refreshToolSel();
-  el('edName').value='';
-  if(id){ fetch(api('/api/maps/'+id)).then(r=>r.json()).then(m=>{ el('edName').value=m.name; E.features=m.features; if(m.center) E.map.setView(m.center, m.zoom||17); redrawEd(); }); }
-  else { locateOnce(E.map, 18); }
+  E.id=id||null; E.features=[]; E.dirty=false; E.group.clearLayers(); cancelDraw(); E.tool=null; refreshToolSel();
+  el('edName').value=''; updateStats();
+  startEdGps();
+  const draft=loadDraft(id);
+  const applyDraft=()=>{ if(!draft) return false; el('edName').value=draft.name||el('edName').value; E.features=draft.features; E.dirty=true; redrawEd(); fitFeatures(); toast('Recuperé los cambios que no habías guardado'); return true; };
+  if(id){ fetch(api('/api/maps/'+id)).then(r=>r.json()).then(m=>{ el('edName').value=m.name; E.features=m.features; if(m.center) E.map.setView(m.center, m.zoom||17); redrawEd(); applyDraft(); })
+            .catch(()=>{ if(!applyDraft()) toast('No se pudo cargar el campo'); }); }
+  else if(!applyDraft()) E.centerNext=true;
 }
-function redrawEd(){ E.group.clearLayers(); for(const f of E.features) drawFeature(f, E.group, onFeatureClick); }
-function onFeatureClick(f, e){ if(E.drawing){ onEdClick(e); return; } if(E.tool==='del'){ E.features = E.features.filter(x=>x!==f); redrawEd(); toast('Elemento borrado'); } }
+function fitFeatures(){ const b=L.latLngBounds([]); for(const f of E.features) for(const c of f.coords) b.extend(c); if(b.isValid()) E.map.fitBounds(b,{padding:[40,40],maxZoom:19}); else E.centerNext=true; }
+function redrawEd(){ E.group.clearLayers(); for(const f of E.features) drawFeature(f, E.group, onFeatureClick); updateStats(); }
+function updateStats(){
+  const lim=E.features.filter(f=>f.kind==='limite'&&f.geom==='polygon'); const box=el('edStats');
+  if(!lim.length){ box.hidden=true; return; }
+  let area=0, per=0; for(const f of lim){ const m=metrics(f.coords); area+=m.area; per+=m.perim; }
+  box.hidden=false; box.textContent=`Campo ${fmtArea(area)} · ${Math.round(per)} m de borde`;
+}
+async function onFeatureClick(f, e){
+  if(E.drawing){ onEdClick(e); return; }
+  if(E.tool==='del'){ E.features=E.features.filter(x=>x!==f); redrawEd(); markDirty(); toast('Elemento borrado'); }
+  else if(E.tool==='label'){ const v=await askLabel('Nombre para '+(KINDS[f.kind]||KINDS.nota).n.toLowerCase(), f.label); if(v!==null){ f.label=v; redrawEd(); markDirty(); } }
+}
+
+// GPS del editor: siempre activo mientras el editor está abierto
+function startEdGps(){
+  stopEdGps();
+  if(!navigator.geolocation){ el('edGps').textContent='Este teléfono no tiene GPS'; return; }
+  E.watch = navigator.geolocation.watchPosition(onEdFix, err=>{ el('edGps').textContent = err.code===1 ? 'Sin permiso de ubicación' : 'GPS sin señal'; el('edGps').className='box gps'; }, {enableHighAccuracy:true, maximumAge:0, timeout:20000});
+  if('wakeLock' in navigator) navigator.wakeLock.request('screen').then(w=>E.wake=w).catch(()=>{});
+}
+function stopEdGps(){ if(E.watch!=null){ navigator.geolocation.clearWatch(E.watch); E.watch=null; } E.rec=false; E.avg=null; if(E.wake){ E.wake.release().catch(()=>{}); E.wake=null; } }
+function onEdFix(p){
+  const f={lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy, t:Date.now()}; E.fix=f; const ll=[f.lat,f.lng];
+  el('edGps').textContent = `GPS ±${Math.round(f.acc)} m · ` + (f.acc<=6?'muy bueno':f.acc<=MAX_ACC_TRACK?'bueno':'débil');
+  el('edGps').className = 'box gps' + (f.acc<=MAX_ACC_TRACK?' ok':'');
+  if(!E.meMk){ E.meMk=L.marker(ll,{icon:L.divIcon({className:'',html:'<div class="marker-me"></div>',iconSize:[18,18],iconAnchor:[9,9]}),zIndexOffset:1000,interactive:false}).addTo(E.map);
+               E.accC=L.circle(ll,{radius:f.acc,color:'#e9a93a',weight:1,fillOpacity:.08,interactive:false}).addTo(E.map); }
+  else { E.meMk.setLatLng(ll); E.accC.setLatLng(ll).setRadius(f.acc); }
+  if(E.centerNext){ E.centerNext=false; E.map.setView(ll,19); }
+  if(E.avg) E.avg.samples.push(f);
+  if(E.rec && E.drawing) addTrackFix(f);
+}
+
+// Dibujo
 function startDraw(kind){
   cancelDraw(); E.tool=kind; refreshToolSel(); const k=KINDS[kind];
-  E.drawing={kind}; E.pts=[]; el('edDrawHud').hidden=false;
-  el('edDrawInfo').textContent = k.geom==='point' ? 'Toca el mapa donde va el punto' : 'Toca el mapa para marcar las esquinas y pulsa Terminar';
-  E.tmp = L.polyline([], {color:k.color, weight:3, dashArray:'6 4'}).addTo(E.map);
+  E.drawing={kind}; E.pts=[]; E.rec=false; E.closeHinted=false; el('edDrawHud').hidden=false;
+  el('edRec').hidden = k.geom==='point'; updateRecBtn(); setHereLabel();
+  E.tmp = L.polyline([], {color:k.color, weight:3, dashArray:'6 4', interactive:false}).addTo(E.map);
+  updateDrawInfo();
 }
-function cancelDraw(){ if(E.tmp){ E.map.removeLayer(E.tmp); E.tmp=null; } E.drawing=null; E.pts=[]; el('edDrawHud').hidden=true; if(E.tool&&E.tool!=='del'){ E.tool=null; refreshToolSel(); } }
-function finishDraw(){
-  if(!E.drawing) return; const k=KINDS[E.drawing.kind];
-  if(k.geom==='polygon' && E.pts.length<3){ toast('Un polígono necesita al menos 3 esquinas'); return; }
-  if(k.geom==='point' && E.pts.length<1){ toast('Toca el mapa para colocar el punto'); return; }
-  const f={id:Math.random().toString(36).slice(2,10), kind:E.drawing.kind, label:'', geom:k.geom, coords:E.pts.map(p=>[+p.lat.toFixed(6),+p.lng.toFixed(6)])};
-  if(E.drawing.kind==='nota'||E.drawing.kind==='objetivo'||E.drawing.kind==='bunker'){ f.label = (window.prompt && prompt('Etiqueta (opcional)')) || ''; f.label=f.label.slice(0,40); }
-  E.features.push(f); cancelDraw(); redrawEd(); toast(k.n+' añadido');
+function setHereLabel(){ if(!E.drawing) return; el('edHere').textContent = KINDS[E.drawing.kind].geom==='point' ? '📍 Marcar aquí' : '📍 Esquina aquí'; }
+function updateRecBtn(){ const b=el('edRec'); b.textContent = E.rec ? '⏸ Pausar grabación' : (E.pts.length ? '⏺ Seguir grabando' : '⏺ Grabar caminando'); b.classList.toggle('rec', E.rec); }
+function refreshTmp(){ if(E.tmp) E.tmp.setLatLngs(E.pts.concat(E.pts.length>2?[E.pts[0]]:[])); }
+function updateDrawInfo(extra){
+  if(!E.drawing) return; const k=KINDS[E.drawing.kind]; const info=el('edDrawInfo');
+  if(k.geom==='point'){ info.textContent = `${k.n}: toca el mapa donde va, o ve al sitio y pulsa «Marcar aquí» (mide ${MEASURE_SECONDS} s quieto).`; return; }
+  if(!E.pts.length){ info.textContent = `${k.n}: toca el mapa en cada esquina, o ve caminando: quédate en cada esquina y pulsa «Esquina aquí», o pulsa «Grabar» y rodea la zona.`; return; }
+  const c=E.pts.map(p=>[p.lat,p.lng]); const m=metrics(c);
+  info.textContent = `${E.pts.length} puntos · ${Math.round(m.perim)} m de borde` + (c.length>=3?` · ${fmtArea(m.area)}`:'') + (E.rec?' · 🔴 grabando':'') + (extra?' · '+extra:'');
+}
+function addTrackFix(f){
+  if(f.acc>MAX_ACC_TRACK){ updateDrawInfo(`esperando mejor señal (±${Math.round(f.acc)} m)`); return; }
+  const ll=[f.lat,f.lng]; const last=E.pts[E.pts.length-1];
+  if(last && dist([last.lat,last.lng], ll) < Math.max(2.5, f.acc*0.4)){ updateDrawInfo(); return; }
+  E.pts.push(L.latLng(f.lat,f.lng)); refreshTmp(); E.map.panTo(ll,{animate:true}); updateRecBtn();
+  if(!E.closeHinted && E.pts.length>8){ const c=E.pts.map(p=>[p.lat,p.lng]); if(pathLen(c)>30 && dist(c[0],ll)<6){ E.closeHinted=true; vibrate([150,80,150]); toast('Volviste al punto de inicio. Pulsa Terminar para cerrar la zona'); } }
+  updateDrawInfo();
+}
+function measureHere(){
+  if(!E.drawing || E.avg) return;
+  if(!E.fix){ toast('Todavía no hay señal GPS'); return; }
+  const k=KINDS[E.drawing.kind]; const here=el('edHere'), rec=el('edRec');
+  const wasRec=E.rec; E.rec=false; updateRecBtn();
+  here.disabled=true; rec.disabled=true;
+  E.avg={samples: Date.now()-E.fix.t<1500 ? [E.fix] : []};
+  let left=MEASURE_SECONDS; here.textContent=`Quieto… ${left}`;
+  const iv=setInterval(()=>{
+    left--; if(left>0 && E.avg){ here.textContent=`Quieto… ${left}`; return; }
+    clearInterval(iv); const s=(E.avg?E.avg.samples:[]).filter(x=>x.acc<=MAX_ACC_AVG); E.avg=null;
+    here.disabled=false; rec.disabled=false; setHereLabel();
+    if(!E.drawing) return;
+    if(!s.length){ toast('Señal GPS débil. Ve a un sitio despejado y vuelve a intentarlo'); return; }
+    // promedio ponderado: las lecturas más precisas pesan más
+    let W=0,la=0,ln=0; for(const x of s){ const w=1/(x.acc*x.acc); W+=w; la+=x.lat*w; ln+=x.lng*w; }
+    const accs=s.map(x=>x.acc).sort((a,b)=>a-b); const med=accs[Math.floor(accs.length/2)];
+    const ll=L.latLng(la/W, ln/W); vibrate(80);
+    if(k.geom==='point'){ E.pts=[ll]; finishDraw(); }
+    else { E.pts.push(ll); refreshTmp(); E.rec=wasRec; updateRecBtn(); updateDrawInfo(); toast(`Esquina ${E.pts.length} marcada (señal ±${Math.round(med)} m)`); }
+  },1000);
+}
+function cancelDraw(){ if(E.tmp){ E.map.removeLayer(E.tmp); E.tmp=null; } E.drawing=null; E.pts=[]; E.rec=false; E.avg=null; el('edDrawHud').hidden=true; if(E.tool && KINDS[E.tool]){ E.tool=null; refreshToolSel(); } }
+async function finishDraw(){
+  if(!E.drawing) return; const kind=E.drawing.kind, k=KINDS[kind];
+  if(k.geom==='polygon' && E.pts.length<3){ toast('Una zona necesita al menos 3 puntos'); return; }
+  if(k.geom==='point' && E.pts.length<1){ toast('Toca el mapa o pulsa «Marcar aquí»'); return; }
+  let coords=E.pts.map(p=>[+p.lat.toFixed(6),+p.lng.toFixed(6)]);
+  if(k.geom==='polygon' && coords.length>12) coords=simplify(coords, 1.0);
+  const f={id:Math.random().toString(36).slice(2,10), kind, label:'', geom:k.geom, coords};
+  cancelDraw();
+  if(kind==='nota'||kind==='objetivo'||kind==='bunker'){ const v=await askLabel('Nombre para '+k.n.toLowerCase(), ''); f.label=v||''; }
+  E.features.push(f); redrawEd(); markDirty(); toast(k.n+' añadido');
 }
 function onEdClick(e){
   if(!E.drawing) return; const k=KINDS[E.drawing.kind];
   if(k.geom==='point'){ E.pts=[e.latlng]; finishDraw(); return; }
-  E.pts.push(e.latlng); E.tmp.setLatLngs(E.pts.concat(E.pts.length>2?[E.pts[0]]:[]));
-  el('edDrawInfo').textContent = `${E.pts.length} esquinas · toca para añadir más o pulsa Terminar`;
+  E.pts.push(e.latlng); refreshTmp(); updateRecBtn(); updateDrawInfo();
 }
+function askLabel(title, current){ return new Promise(res=>{
+  el('labelTitle').textContent=title; el('labelInput').value=current||''; el('labelModal').hidden=false; setTimeout(()=>el('labelInput').focus(),50);
+  const done=v=>{ el('labelModal').hidden=true; el('labelOk').onclick=el('labelSkip').onclick=null; res(v); };
+  el('labelOk').onclick=()=>done(el('labelInput').value.trim().slice(0,40)); el('labelSkip').onclick=()=>done('');
+}); }
+el('labelInput').addEventListener('keydown', e=>{ if(e.key==='Enter') el('labelOk').click(); });
+el('edHere').onclick=measureHere;
+el('edRec').onclick=()=>{ if(!E.drawing) return; E.rec=!E.rec; updateRecBtn(); if(E.rec){ toast('Grabando: camina por el borde de la zona'); if(E.fix) addTrackFix(E.fix); } updateDrawInfo(); };
 el('edFinish').onclick=finishDraw; el('edCancel').onclick=cancelDraw;
-el('edUndoPt').onclick=()=>{ E.pts.pop(); if(E.tmp) E.tmp.setLatLngs(E.pts.concat(E.pts.length>2?[E.pts[0]]:[])); };
-el('edBack').onclick=()=>goHome();
+el('edUndoPt').onclick=()=>{ E.pts.pop(); refreshTmp(); updateRecBtn(); updateDrawInfo(); };
+el('edBack').onclick=()=>{ if(E.dirty) toast('Cambios sin guardar: quedan como borrador en este teléfono'); goHome(); };
 el('edLayer').onclick=()=>toggleLayer(E.map);
-el('edLocate').onclick=()=>locateOnce(E.map, 18);
-function locateOnce(map, zoom){ if(!navigator.geolocation){ toast('Este navegador no tiene GPS'); return; } toast('Buscando tu posición…'); navigator.geolocation.getCurrentPosition(p=>{ map.setView([p.coords.latitude,p.coords.longitude], zoom); }, err=>toast('Sin GPS: '+err.message), {enableHighAccuracy:true, timeout:10000}); }
+el('edLocate').onclick=()=>{ if(E.fix) E.map.setView([E.fix.lat,E.fix.lng], Math.max(E.map.getZoom(),18)); else { E.centerNext=true; toast('Buscando tu posición…'); } };
+
+// Borrador local: lo caminado no se pierde aunque se cierre la app
+function markDirty(){ E.dirty=true; saveDraft(); updateStats(); }
+function saveDraft(){ try{ localStorage.setItem('pb_draft', JSON.stringify({id:E.id, name:el('edName').value, features:E.features, t:Date.now()})); }catch(e){} }
+function loadDraft(id){ try{ const d=JSON.parse(localStorage.getItem('pb_draft')||'null'); if(d && (d.id||null)===(id||null) && Array.isArray(d.features) && d.features.length) return d; }catch(e){} return null; }
+function clearDraft(){ try{ localStorage.removeItem('pb_draft'); }catch(e){} }
+el('edName').addEventListener('input', ()=>{ if(E.features.length){ E.dirty=true; saveDraft(); } });
+
 async function saveMap(){
   const name=el('edName').value.trim(); if(!name){ toast('Ponle nombre al campo'); el('edName').focus(); return; }
   if(!SERVER){ toast('Configura primero la dirección del servidor'); return; }
+  if(!E.features.length){ toast('Añade al menos una zona o punto'); return; }
   if(CONFIG.pinRequired && !PIN){ el('pinModal').hidden=false; return; }
-  const id = E.id || name.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,30) + '-' + Math.random().toString(36).slice(2,6);
+  const id = E.id || (name.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,30)||'campo') + '-' + Math.random().toString(36).slice(2,6);
   const c=E.map.getCenter();
+  el('edSave').disabled=true;
   const r = await fetch(api('/api/maps/'+id), {method:'PUT', headers:{'content-type':'application/json','x-pin':PIN}, body:JSON.stringify({name, center:[+c.lat.toFixed(6),+c.lng.toFixed(6)], zoom:E.map.getZoom(), features:E.features})}).catch(()=>null);
-  if(r && r.ok){ E.id=id; toast('Campo guardado'); }
+  el('edSave').disabled=false;
+  if(r && r.ok){ E.id=id; E.dirty=false; clearDraft(); toast('Campo guardado'); }
   else if(r && r.status===403){ PIN=''; el('pinModal').hidden=false; toast('PIN incorrecto'); }
-  else toast('No se pudo guardar');
+  else toast('No se pudo guardar. Tus cambios siguen como borrador; reintenta con conexión');
 }
 el('edSave').onclick=saveMap;
 el('pinOk').onclick=()=>{ PIN=el('pinInput').value; try{localStorage.setItem('pb_pin',PIN);}catch(e){} el('pinModal').hidden=true; saveMap(); };
@@ -306,7 +449,34 @@ el('pinCancel').onclick=()=>{ el('pinModal').hidden=true; };
 el('btnNewMap').onclick=()=>openEditor(null);
 
 // ---------- Partida ----------
-const G = { map:null, group:null, ws:null, you:null, me:null, markers:new Map(), watch:null, follow:true, out:false, lastSend:0, heading:null, wake:null, retry:null, active:false, mapId:null };
+const G = { map:null, group:null, ws:null, you:null, me:null, accC:null, guide:null, field:[], zone:'', zonePending:'', zoneCount:0, infoText:'', arrived:false, markers:new Map(), watch:null, follow:true, out:false, lastSend:0, heading:null, wake:null, retry:null, active:false, mapId:null };
+function setInfo(t){ G.infoText=t; if(!G.out || TEAM==='ref') el('gmInfo').textContent=t; }
+// Aviso al salir del límite o entrar en zona prohibida. Hace falta que se repita en 2 lecturas seguidas
+// para no vibrar por el temblor normal del GPS cerca del borde.
+function checkZones(){
+  if(!G.pos || !G.field.length) return;
+  const lim=G.field.filter(f=>f.kind==='limite'&&f.geom==='polygon'), proh=G.field.filter(f=>f.kind==='prohibida'&&f.geom==='polygon');
+  let s=''; if(proh.some(f=>inPoly(G.pos,f.coords))) s='⚠ Estás en una zona prohibida'; else if(lim.length && !lim.some(f=>inPoly(G.pos,f.coords))) s='⚠ Estás fuera del campo';
+  if(s===G.zone){ G.zonePending=s; G.zoneCount=0; return; }
+  if(s===G.zonePending) G.zoneCount++; else { G.zonePending=s; G.zoneCount=1; }
+  if(G.zoneCount>=2){ G.zone=s; G.zoneCount=0; el('gmAlert').hidden=!s; el('gmAlert').textContent=s; if(s) vibrate([300,120,300]); }
+}
+// Tras "Me dieron": distancia y dirección a la reaparición (o base) más cercana de tu equipo
+function myTargets(){
+  const pts=G.field.filter(f=>f.kind===(TEAM==='b'?'respawn_b':'respawn_r')).map(f=>f.coords[0]);
+  return pts.length ? pts : G.field.filter(f=>f.kind===(TEAM==='b'?'base_b':'base_r')&&f.geom==='polygon').map(f=>centroid(f.coords));
+}
+function updateGuide(){
+  const info=el('gmInfo');
+  if(!G.out || TEAM==='ref'){ if(G.guide){ G.map.removeLayer(G.guide); G.guide=null; } info.textContent=G.infoText; return; }
+  const ts=myTargets(); if(!G.pos || !ts.length){ info.textContent='Eliminado · vuelve a tu base'; return; }
+  let best=ts[0], bd=Infinity; for(const t of ts){ const d=dist(G.pos,t); if(d<bd){ bd=d; best=t; } }
+  const b=bearing(G.pos,best);
+  info.textContent=''; const a=document.createElement('span'); a.className='arrow'; a.textContent='↑'; a.style.transform=`rotate(${Math.round(b)}deg)`;
+  info.append('Reaparición: ', a, ` ${Math.round(bd)} m al ${dirName(b)}`);
+  if(!G.guide) G.guide=L.polyline([G.pos,best],{color:'#ffffff',weight:2,dashArray:'6 6',interactive:false}).addTo(G.map); else G.guide.setLatLngs([G.pos,best]);
+  if(bd<8 && !G.arrived){ G.arrived=true; vibrate([100,60,100,60,100]); toast('Llegaste a la reaparición. Pulsa «Vuelvo al juego»'); }
+}
 function connect(){
   const name=el('name').value.trim()||'Jugador', code=el('code').value.trim().toUpperCase(), mapId=el('mapSel').value;
   if(!SERVER){ toast('Configura primero la dirección del servidor'); return; }
@@ -317,25 +487,26 @@ function connect(){
   if(!G.map){ G.map=makeMap('gmap'); G.group=L.layerGroup().addTo(G.map); G.map.on('dragstart', ()=>{ G.follow=false; el('gmFollow').classList.remove('sel'); }); }
   setTimeout(()=>G.map.invalidateSize(),50);
   G.group.clearLayers(); for(const m of G.markers.values()) G.map.removeLayer(m.marker); G.markers.clear();
-  if(G.me){ G.map.removeLayer(G.me); G.me=null; }
+  if(G.me){ G.map.removeLayer(G.me); G.me=null; } if(G.accC){ G.map.removeLayer(G.accC); G.accC=null; } if(G.guide){ G.map.removeLayer(G.guide); G.guide=null; }
+  G.field=[]; G.zone=''; G.zonePending=''; G.zoneCount=0; G.arrived=false; el('gmAlert').hidden=true; setInfo('Conectando…');
   G.mapId=mapId; if(mapId) loadFieldInto(mapId, G.map, G.group);
   el('gmYou').textContent = name + (TEAM==='r'?' · Rojo':TEAM==='b'?' · Azul':' · Árbitro');
   openWs(code, name, mapId);
   startGps();
   if('wakeLock' in navigator) navigator.wakeLock.request('screen').then(w=>G.wake=w).catch(()=>{});
 }
-function loadFieldInto(id, map, group){ fetch(api('/api/maps/'+id)).then(r=>r.json()).then(m=>{ group.clearLayers(); for(const f of m.features) drawFeature(f, group); if(m.center && !G.gotFix) map.setView(m.center, m.zoom||17); }).catch(()=>toast('No se pudo cargar el mapa del campo')); }
+function loadFieldInto(id, map, group){ fetch(api('/api/maps/'+id)).then(r=>r.json()).then(m=>{ group.clearLayers(); G.field=m.features||[]; for(const f of G.field) drawFeature(f, group); checkZones(); if(m.center && !G.gotFix) map.setView(m.center, m.zoom||17); }).catch(()=>toast('No se pudo cargar el mapa del campo')); }
 function openWs(code, name, mapId){
   if(G.ws){ G.ws.onclose=null; G.ws.close(); }
   const ws = new WebSocket(wsUrl()); G.ws=ws;
-  ws.onopen=()=>{ ws.send(JSON.stringify({t:'join', game:code, name, team:TEAM, map:mapId||null, id:G.you||undefined})); el('gmInfo').textContent='Partida '+code; };
+  ws.onopen=()=>{ ws.send(JSON.stringify({t:'join', game:code, name, team:TEAM, map:mapId||null, id:G.you||undefined})); setInfo('Partida '+code); };
   ws.onmessage=ev=>{ let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
     if(m.t==='joined'){ G.you=m.you; if(m.map && m.map!==G.mapId){ G.mapId=m.map; loadFieldInto(m.map, G.map, G.group); } applyPlayers(m); }
     else if(m.t==='players') applyPlayers(m);
     else if(m.t==='maps') loadMaps();
     else if(m.t==='error') toast(m.error);
   };
-  ws.onclose=()=>{ if(!G.active) return; el('gmInfo').textContent='Reconectando…'; clearTimeout(G.retry); G.retry=setTimeout(()=>openWs(code,name,mapId),2000); };
+  ws.onclose=()=>{ if(!G.active) return; setInfo('Reconectando…'); clearTimeout(G.retry); G.retry=setTimeout(()=>openWs(code,name,mapId),2000); };
   ws.onerror=()=>{};
 }
 function applyPlayers(m){
@@ -363,8 +534,10 @@ function startGps(){
     G.pos=[lat,lng]; G.gotFix=true;
     const h = G.heading!=null ? G.heading : (heading!=null && !isNaN(heading) ? heading : null);
     el('gmGps').textContent = `GPS ±${Math.round(acc)} m`; el('gmGps').className='gps '+(acc<15?'ok':'');
-    if(!G.me){ G.me=L.marker(G.pos,{icon:L.divIcon({className:'',html:'<div class="marker-me"></div>',iconSize:[18,18],iconAnchor:[9,9]}),zIndexOffset:1000}).addTo(G.map); G.map.setView(G.pos,18); }
-    else G.me.setLatLng(G.pos);
+    if(!G.me){ G.me=L.marker(G.pos,{icon:L.divIcon({className:'',html:'<div class="marker-me"></div>',iconSize:[18,18],iconAnchor:[9,9]}),zIndexOffset:1000,interactive:false}).addTo(G.map); G.map.setView(G.pos,18);
+               G.accC=L.circle(G.pos,{radius:acc,color:'#e9a93a',weight:1,fillOpacity:.08,interactive:false}).addTo(G.map); }
+    else { G.me.setLatLng(G.pos); if(G.accC) G.accC.setLatLng(G.pos).setRadius(acc); }
+    checkZones(); updateGuide();
     if(G.follow) G.map.panTo(G.pos,{animate:true,duration:0.5});
     const now=Date.now(); if(G.ws&&G.ws.readyState===1&&now-G.lastSend>1000){ G.lastSend=now; G.ws.send(JSON.stringify({t:'pos',lat:+lat.toFixed(6),lng:+lng.toFixed(6),acc:Math.round(acc),heading:h==null?null:Math.round(h),speed:speed==null?null:+speed.toFixed(1)})); }
   }, err=>{ el('gmGps').textContent = err.code===1 ? (IS_APP ? 'Permite la ubicación en Ajustes › Apps › Paintball GPS' : 'Permiso de ubicación denegado') : 'GPS sin señal'; el('gmGps').className='gps'; }, {enableHighAccuracy:true, maximumAge:1000, timeout:15000});
@@ -372,10 +545,10 @@ function startGps(){
   const onOri = e=>{ let h=null; if(e.webkitCompassHeading!=null) h=e.webkitCompassHeading; else if(e.alpha!=null && e.absolute) h=(360-e.alpha)%360; if(h!=null) G.heading=h; };
   if(window.DeviceOrientationEvent){ if(typeof DeviceOrientationEvent.requestPermission==='function') DeviceOrientationEvent.requestPermission().then(s=>{ if(s==='granted') addEventListener('deviceorientation',onOri); }).catch(()=>{}); else addEventListener('deviceorientationabsolute',onOri); }
 }
-el('btnOut').onclick=()=>{ G.out=!G.out; el('btnOut').textContent = G.out?'Vuelvo al juego':'Me dieron'; el('btnOut').classList.toggle('danger',!G.out); if(G.ws&&G.ws.readyState===1) G.ws.send(JSON.stringify({t:'status',out:G.out})); };
+el('btnOut').onclick=()=>{ G.out=!G.out; G.arrived=false; el('btnOut').textContent = G.out?'Vuelvo al juego':'Me dieron'; el('btnOut').classList.toggle('danger',!G.out); if(G.ws&&G.ws.readyState===1) G.ws.send(JSON.stringify({t:'status',out:G.out})); updateGuide(); };
 el('gmFollow').onclick=()=>{ G.follow=!G.follow; el('gmFollow').classList.toggle('sel',G.follow); if(G.follow&&G.pos) G.map.panTo(G.pos); };
 el('gmLayer').onclick=()=>toggleLayer(G.map);
-function leaveGame(){ G.active=false; clearTimeout(G.retry); if(G.ws){ try{G.ws.send(JSON.stringify({t:'leave'}));}catch(e){} G.ws.onclose=null; G.ws.close(); G.ws=null; } if(G.watch!=null){ navigator.geolocation.clearWatch(G.watch); G.watch=null; } if(G.wake){ G.wake.release().catch(()=>{}); G.wake=null; } }
+function leaveGame(){ G.active=false; G.out=false; el('gmAlert').hidden=true; clearTimeout(G.retry); if(G.ws){ try{G.ws.send(JSON.stringify({t:'leave'}));}catch(e){} G.ws.onclose=null; G.ws.close(); G.ws=null; } if(G.watch!=null){ navigator.geolocation.clearWatch(G.watch); G.watch=null; } if(G.wake){ G.wake.release().catch(()=>{}); G.wake=null; } }
 el('gmLeave').onclick=()=>goHome();
 el('btnPlay').onclick=connect;
 // El APK llama a esto cuando el usuario concede el permiso de ubicación, para reiniciar el GPS.
